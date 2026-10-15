@@ -43,6 +43,7 @@ export function openPractice(root, opts) {
         <div class="spacer"></div>
         <div class="chips">
           <label class="ctrl small muted" data-r="trackWrap" hidden>Parti <select data-r="track"></select></label>
+          <button class="chip" data-a="listen" title="Gitarsız dinle: kendi partin de çalar, puan tutulmaz">Dinleme modu</button>
           <button class="chip" data-a="wait" title="Doğru notayı basana kadar şarkı durur">Bekle</button>
           <button class="chip" data-a="guide" title="Kendi partini kısık sesle duy">Kılavuz ses</button>
           <button class="chip" data-a="metro">Metronom</button>
@@ -57,7 +58,7 @@ export function openPractice(root, opts) {
           <div class="heard"><span class="lbl">Duyulan</span><span class="n" data-r="heard">–</span></div>
           <div class="feedback" data-r="fb"></div>
           <div class="spacer"></div>
-          <div class="small muted" data-r="inputWarn" style="max-width:32ch" hidden>Gitar girişi kapalı. Ayarlar'dan Blackstar'ı seç; şimdilik sadece eşlik çalar.</div>
+          <div class="small muted" data-r="inputWarn" style="max-width:34ch" hidden></div>
           <div class="small muted row legend" style="gap:14px">${Fretboard.legend()}</div>
         </div>
         <div class="highway-wrap">
@@ -98,6 +99,8 @@ export function openPractice(root, opts) {
   let fbTimer = 0;
   let ready = false;
   let finishedShown = false;
+  // Dinleme modu: gitar yokken şarkıyı tam haliyle dinle; puan tutulmaz
+  let listen = !input.running;
 
   // ---- alphaTab ----
   const atEl = $('at');
@@ -220,7 +223,10 @@ export function openPractice(root, opts) {
   function applyTrackAudio() {
     if (!api || !score) return;
     const t = score.tracks[trackIndex];
-    if (getSettings().guide) {
+    if (listen) {
+      api.changeTrackMute([t], false);
+      api.changeTrackVolume([t], 1);
+    } else if (getSettings().guide) {
       api.changeTrackMute([t], false);
       api.changeTrackVolume([t], 0.4);
     } else {
@@ -437,7 +443,7 @@ export function openPractice(root, opts) {
 
   // ---- bitiş ----
   function onFinished() {
-    if (finishedShown || !data || destroyed) return;
+    if (finishedShown || !data || destroyed || listen) return;
     const st = stats();
     if (st.judged < Math.max(3, data.events.length * 0.5)) return; // erken durdurulduysa sonuç gösterme
     if (api.isLooping) return;
@@ -525,7 +531,14 @@ export function openPractice(root, opts) {
   }
   function syncToggles() {
     const c = getSettings();
+    btn('listen').classList.toggle('on', listen);
     btn('wait').classList.toggle('on', c.waitMode);
+    btn('wait').disabled = listen;
+    const warn = $('inputWarn');
+    warn.hidden = !listen && input.running;
+    warn.textContent = listen
+      ? 'Dinleme modu: kendi partin de çalıyor, puan tutulmuyor.'
+      : 'Gitar girişi kapalı. Ayarlar\'dan Blackstar\'ı seç.';
     btn('guide').classList.toggle('on', c.guide);
     btn('metro').classList.toggle('on', c.metronome);
     btn('sheet').classList.toggle('on', c.showSheet);
@@ -536,6 +549,18 @@ export function openPractice(root, opts) {
   btn('exit').onclick = () => exit();
   btn('slower').onclick = () => setSpeed(SPEEDS[Math.max(0, SPEEDS.indexOf(nearest(speed)) - 1)]);
   btn('faster').onclick = () => setSpeed(SPEEDS[Math.min(SPEEDS.length - 1, SPEEDS.indexOf(nearest(speed)) + 1)]);
+  btn('listen').onclick = () => {
+    listen = !listen;
+    applyTrackAudio();
+    syncToggles();
+    if (!listen) {
+      if (!input.running) toast('Gitar bağlı değil; notalar dinlenemeyecek.');
+      restart(false); // puanlama baştan başlasın
+    } else {
+      waiting = null;
+      updateHud(true);
+    }
+  };
   btn('wait').onclick = () => { setSetting('waitMode', !getSettings().waitMode); waiting = null; syncToggles(); };
   btn('guide').onclick = () => { setSetting('guide', !getSettings().guide); applyTrackAudio(); syncToggles(); };
   btn('metro').onclick = () => { setSetting('metronome', !getSettings().metronome); if (api) api.metronomeVolume = getSettings().metronome ? 1 : 0; syncToggles(); };
@@ -577,19 +602,21 @@ export function openPractice(root, opts) {
     const now = performance.now();
     const dt = (now - lastFrame) / 1000;
     lastFrame = now;
-    if (playing && !waiting) practiceAcc += dt;
+    if (playing && !waiting && !listen) practiceAcc += dt;
     const songMs = songMsNow(now);
-    if (ready && (playing || waiting)) judge(now, songMs);
+    if (ready && !listen && (playing || waiting)) judge(now, songMs);
     highway.pxPerMs = getSettings().zoom;
     highway.draw(songMs, now);
     if (data) {
-      const nxt = waiting || data.events.find((e, k) => k >= judgeIdx && e.state === 'pending' && e.ms >= songMs - 400) || null;
+      const nxt = listen
+        ? data.events.find((e) => e.endMs >= songMs) || null
+        : waiting || data.events.find((e, k) => k >= judgeIdx && e.state === 'pending' && e.ms >= songMs - 400) || null;
       const ni = nxt ? data.events.indexOf(nxt) : -1;
       fret.show(nxt, ni >= 0 ? data.events.slice(ni + 1, ni + 3) : []);
     }
     const st = input.state;
     $('heard').textContent = st.midi != null ? noteLabel(st.midi) : '–';
-    $('inputWarn').hidden = input.running;
+    if (!listen) $('inputWarn').hidden = input.running;
     if (practiceAcc >= 15) {
       addPracticeSeconds(Math.round(practiceAcc));
       practiceAcc = 0;
