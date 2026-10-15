@@ -284,6 +284,11 @@ if (!app.requestSingleInstanceLock()) {
   });
 
   app.whenReady().then(() => {
+    // Program adındaki Türkçe harfler (Ö, ğ) tarayıcı kimliğine giriyor ve
+    // dosya isteklerini bozuyordu: kimliği yalnızca ASCII karakterlerle kur.
+    app.userAgentFallback = app.userAgentFallback
+      .replace(/Gitar Öğren\/\S+/, 'GitarOgren/' + app.getVersion())
+      .replace(/[^\x20-\x7E]/g, '');
     // Dosya tipi açıkça belirtilir: bazı Windows'larda kayıt defteri .js'yi
     // "text/plain" sayıyor ve sayfa hiç çalışmıyordu.
     const MIME = {

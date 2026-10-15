@@ -264,3 +264,5 @@ input[type='range'] { accent-color: var(--amber); }
 /* ilerleme çubukları: seviye ölçerden farklı, tek renk */
 .goal .meter i { background: var(--amber); }
 .warm .meter i { background: var(--turq); }
+
+.legend span { white-space: nowrap; }

@@ -57,8 +57,8 @@ export function openPractice(root, opts) {
           <div class="heard"><span class="lbl">Duyulan</span><span class="n" data-r="heard">–</span></div>
           <div class="feedback" data-r="fb"></div>
           <div class="spacer"></div>
-          <div class="small muted" data-r="inputWarn" hidden>Gitar girişi kapalı. Ayarlar'dan Blackstar'ı seç; şimdilik sadece eşlik çalar.</div>
-          <div class="small muted row" style="gap:14px">${Fretboard.legend()}</div>
+          <div class="small muted" data-r="inputWarn" style="max-width:32ch" hidden>Gitar girişi kapalı. Ayarlar'dan Blackstar'ı seç; şimdilik sadece eşlik çalar.</div>
+          <div class="small muted row legend" style="gap:14px">${Fretboard.legend()}</div>
         </div>
         <div class="highway-wrap">
           <canvas data-r="canvas"></canvas>
