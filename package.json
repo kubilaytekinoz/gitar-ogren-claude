@@ -1,0 +1,73 @@
+{
+  "name": "gitar-ogren",
+  "productName": "Gitar Öğren",
+  "version": "0.1.0",
+  "description": "Türkçe şarkılarla gitar öğrenme: bastığın notayı dinler, doğru mu yanlış mı gösterir.",
+  "main": "main.js",
+  "author": "Kubilay Tekinöz",
+  "license": "MIT",
+  "type": "commonjs",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kubilaytekinoz/gitar-ogren-claude.git"
+  },
+  "scripts": {
+    "start": "electron .",
+    "songs": "node scripts/build-songs.mjs",
+    "soundfont": "node scripts/fetch-soundfont.mjs",
+    "test": "node test/pitch.test.mjs && node test/validate-songs.mjs",
+    "dist": "electron-builder --win",
+    "release": "electron-builder --win --publish always"
+  },
+  "dependencies": {
+    "@coderline/alphatab": "~1.8.4",
+    "electron-log": "^5.2.0",
+    "electron-updater": "^6.3.9"
+  },
+  "devDependencies": {
+    "electron": "^38.2.0",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.kubilaytekinoz.gitarogren",
+    "productName": "Gitar Öğren",
+    "artifactName": "GitarOgren-Kurulum-${version}.${ext}",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "src/**/*",
+      "songs/**/*",
+      "assets/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Gitar Öğren"
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "kubilaytekinoz",
+        "repo": "gitar-ogren-claude",
+        "releaseType": "release"
+      }
+    ]
+  }
+}

@@ -1,0 +1,4 @@
+node_modules/
+dist/
+assets/soundfont/*.sf2
+*.log

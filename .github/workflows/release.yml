@@ -1,0 +1,41 @@
+name: Test ve sürüm
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --no-audit --no-fund
+      - name: Nota algılama testi
+        run: node test/pitch.test.mjs
+      - name: Şarkı ve ısınma dosyaları testi
+        run: node test/validate-songs.mjs
+
+  windows:
+    needs: test
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --no-audit --no-fund
+      - name: Gerçekçi ses bankasını indir
+        run: node scripts/fetch-soundfont.mjs
+      - name: Windows kurulum dosyasını hazırla ve yayınla
+        run: npx electron-builder --win --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
