@@ -170,6 +170,14 @@ function createWindow() {
   win.webContents.on('will-navigate', (e, url) => {
     if (!url.startsWith('app://')) e.preventDefault();
   });
+  win.webContents.on('did-fail-load', (_e, code, desc, url) => log.error('Sayfa yüklenemedi', code, desc, url));
+  win.webContents.on('render-process-gone', (_e, d) => {
+    log.error('Arayüz çöktü', d);
+    dialog.showErrorBox('Gitar Öğren', 'Ekran çizilemedi (' + d.reason + '). Programı kapatıp tekrar aç.');
+  });
+  win.webContents.on('console-message', (_e, level, message, line, source) => {
+    if (level >= 2) log.warn('[arayüz]', message, source + ':' + line);
+  });
   win.on('closed', () => (win = null));
 }
 
@@ -276,12 +284,28 @@ if (!app.requestSingleInstanceLock()) {
   });
 
   app.whenReady().then(() => {
-    protocol.handle('app', (req) => {
-      const file = resolveAppUrl(req.url);
-      if (!file || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {
-        return new Response('bulunamadı', { status: 404 });
+    // Dosya tipi açıkça belirtilir: bazı Windows'larda kayıt defteri .js'yi
+    // "text/plain" sayıyor ve sayfa hiç çalışmıyordu.
+    const MIME = {
+      '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8',
+      '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.ttf': 'font/ttf', '.otf': 'font/otf',
+      '.woff': 'font/woff', '.woff2': 'font/woff2', '.svg': 'image/svg+xml', '.png': 'image/png',
+      '.sf2': 'application/octet-stream', '.sf3': 'application/octet-stream', '.atex': 'text/plain; charset=utf-8',
+    };
+    protocol.handle('app', async (req) => {
+      try {
+        const file = resolveAppUrl(req.url);
+        if (!file || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {
+          log.warn('Bulunamadı:', req.url);
+          return new Response('bulunamadı', { status: 404 });
+        }
+        const res = await net.fetch(pathToFileURL(file).toString());
+        const type = MIME[path.extname(file).toLowerCase()] || 'application/octet-stream';
+        return new Response(res.body, { status: 200, headers: { 'content-type': type, 'cache-control': 'no-cache' } });
+      } catch (e) {
+        log.error('Dosya okunamadı', req.url, e);
+        return new Response('hata: ' + e.message, { status: 500 });
       }
-      return net.fetch(pathToFileURL(file).toString());
     });
 
     // Gitar girişi (mikrofon / USB ses kartı) iznini otomatik ver
