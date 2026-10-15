@@ -135,6 +135,8 @@ export function openPractice(root, opts) {
         parsed = AT.importer.ScoreLoader.loadAlphaTex(txt, loadSettings);
       } else {
         const buf = new Uint8Array(await (await fetch(opts.source.url)).arrayBuffer());
+        // GP3/4/5 dosyalarındaki yazılar Windows Türkçe kodlamasıyla kaydedilir (ö, ş, ğ, ı...)
+        if (/\.gp[345](\?|$)/i.test(decodeURIComponent(opts.source.url))) loadSettings.importer.encoding = 'windows-1254';
         parsed = AT.importer.ScoreLoader.loadScoreFromBytes(buf, loadSettings);
       }
       score = parsed;
@@ -158,7 +160,7 @@ export function openPractice(root, opts) {
         showLoading('Bir sorun oluştu: ' + (e?.message || e));
       });
       // Not: alphaTab 1.8.4'te midiLoaded'a abone olmak sonsuz döngüye giriyor; midiLoad kullanıyoruz.
-      api.midiLoad.on(() => setTimeout(prepareEvents, 0));
+      api.midiLoad.on(() => setTimeout(() => { prepareEvents(); applyPendingSeek(); }, 0));
       api.playerReady.on(() => maybeReady());
       api.playerStateChanged.on((e) => {
         const now = performance.now();
@@ -193,14 +195,48 @@ export function openPractice(root, opts) {
       const prev = score.tracks[trackIndex];
       trackIndex = Number(sel.value);
       if (api) {
+        // şarkının neresindeysen orada kal
+        const wasPlaying = playing;
+        const tick = lastTick;
+        if (wasPlaying) api.pause();
         api.changeTrackMute([prev], false);
         api.changeTrackVolume([prev], 1);
-        api.stop();
         api.renderTracks([score.tracks[trackIndex]]);
         prepareEvents();
         applyTrackAudio();
+        pendingSeek = { tick, play: wasPlaying };
+        setTimeout(applyPendingSeek, 250);
       }
     };
+  }
+
+  let pendingSeek = null;
+  function applyPendingSeek() {
+    if (!pendingSeek || !api || !data) return;
+    const { tick, play } = pendingSeek;
+    pendingSeek = null;
+    api.tickPosition = tick;
+    lastTick = tick;
+    lastSongMs = data.tempo.tickToMs(tick);
+    clock.base = lastSongMs;
+    clock.wall = performance.now();
+    clock.moving = false;
+    skipBefore(lastSongMs);
+    if (play) setTimeout(() => api.play(), 60);
+  }
+
+  // Belli bir andan önceki notaları puanlamaya katma (dinleme modundan çıkınca, parti değişince)
+  function skipBefore(ms) {
+    if (!data) return;
+    for (const ev of data.events) {
+      if (ev.ms < ms - 1) { if (ev.state === 'pending') ev.state = 'skip'; }
+      else { ev.state = 'pending'; ev.offset = null; ev.hitAt = 0; }
+    }
+    judgeIdx = 0;
+    while (judgeIdx < data.events.length && data.events[judgeIdx].state !== 'pending') judgeIdx++;
+    consumedAttack = -Infinity;
+    waiting = null;
+    updateHud(true);
   }
 
   function prepareEvents() {
@@ -413,8 +449,8 @@ export function openPractice(root, opts) {
   }
 
   function stats() {
-    const evs = data ? data.events : [];
-    const done = evs.filter((e) => e.state !== 'pending');
+    const evs = (data ? data.events : []).filter((e) => e.state !== 'skip');
+    const done = evs.filter((e) => e.state === 'hit' || e.state === 'miss');
     const hits = done.filter((e) => e.state === 'hit');
     const tol = TOLERANCE[getSettings().difficulty];
     const timed = hits.filter((e) => e.offset != null);
@@ -445,7 +481,7 @@ export function openPractice(root, opts) {
   function onFinished() {
     if (finishedShown || !data || destroyed || listen) return;
     const st = stats();
-    if (st.judged < Math.max(3, data.events.length * 0.5)) return; // erken durdurulduysa sonuç gösterme
+    if (st.judged < Math.max(3, st.total * 0.5)) return; // erken durdurulduysa sonuç gösterme
     if (api.isLooping) return;
     finishedShown = true;
     showResult(st);
@@ -555,7 +591,7 @@ export function openPractice(root, opts) {
     syncToggles();
     if (!listen) {
       if (!input.running) toast('Gitar bağlı değil; notalar dinlenemeyecek.');
-      restart(false); // puanlama baştan başlasın
+      skipBefore(songMsNow(performance.now())); // kaldığın yerden puanlamaya başla
     } else {
       waiting = null;
       updateHud(true);
