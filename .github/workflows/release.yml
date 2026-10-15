@@ -18,9 +18,25 @@ jobs:
           node-version: 22
       - run: npm install --no-audit --no-fund
       - name: Nota algılama testi
-        run: node test/pitch.test.mjs
+        run: node test/pitch.test.mjs 2>&1 | tee -a test.log; exit ${PIPESTATUS[0]}
+        shell: bash
       - name: Şarkı ve ısınma dosyaları testi
-        run: node test/validate-songs.mjs
+        run: node test/validate-songs.mjs 2>&1 | tee -a test.log; exit ${PIPESTATUS[0]}
+        shell: bash
+      # Hata olursa kaydı ci-logs dalına koy (giriş yapmadan okunabilsin diye)
+      - name: Hata kaydını sakla
+        if: failure()
+        shell: bash
+        run: |
+          cp test.log /tmp/test.log 2>/dev/null || echo "kayıt yok" > /tmp/test.log
+          git config user.name "ci"
+          git config user.email "ci@users.noreply.github.com"
+          git checkout --orphan ci-logs
+          git rm -rf --cached . > /dev/null
+          cp /tmp/test.log test.log
+          git add test.log
+          git commit -m "test kaydı ${GITHUB_SHA}"
+          git push -f origin ci-logs
 
   windows:
     needs: test
