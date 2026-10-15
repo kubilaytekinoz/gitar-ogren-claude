@@ -24,8 +24,7 @@ jobs:
 
   windows:
     needs: test
-    # main'e her gönderimde çalışır; package.json'daki sürüm daha önce yayınlanmadıysa kurulum dosyası hazırlar
-    if: github.event_name != 'pull_request'
+    # main'e her gönderimde çalışır; package.json'daki sürümün kurulum dosyası yayında değilse hazırlar
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -37,9 +36,10 @@ jobs:
         run: |
           VERSION=$(node -p "require('./package.json').version")
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-          if gh release view "v$VERSION" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+          ASSETS=$(gh release view "v$VERSION" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' 2>/dev/null || true)
+          if echo "$ASSETS" | grep -qx "GitarOgren-Kurulum-$VERSION.exe" && echo "$ASSETS" | grep -qx "latest.yml"; then
             echo "skip=true" >> $GITHUB_OUTPUT
-            echo "v$VERSION zaten yayında, atlanıyor."
+            echo "v$VERSION zaten eksiksiz yayında, atlanıyor."
           else
             echo "skip=false" >> $GITHUB_OUTPUT
           fi
@@ -52,26 +52,21 @@ jobs:
       - name: Gerçekçi ses bankasını indir
         if: steps.check.outputs.skip == 'false'
         run: node scripts/fetch-soundfont.mjs
-      - name: Windows kurulum dosyasını hazırla ve yayınla
+      - name: Windows kurulum dosyasını hazırla
+        if: steps.check.outputs.skip == 'false'
+        run: npx electron-builder --win --publish never
+      - name: Sürümler sayfasına yükle
         if: steps.check.outputs.skip == 'false'
         shell: bash
-        run: |
-          set -o pipefail
-          npx electron-builder --win --publish always 2>&1 | tee build.log
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          DEBUG: electron-builder
-      # Hata olursa kaydı ci-logs dalına koy (giriş yapmadan okunabilsin diye)
-      - name: Hata kaydını sakla
-        if: failure()
-        shell: bash
         run: |
-          git config user.name "ci"
-          git config user.email "ci@users.noreply.github.com"
-          cp build.log /tmp/build.log 2>/dev/null || echo "kayıt yok" > /tmp/build.log
-          git checkout --orphan ci-logs
-          git rm -rf --cached . > /dev/null
-          cp /tmp/build.log build.log
-          git add build.log
-          git commit -m "derleme kaydı ${GITHUB_SHA}"
-          git push -f origin ci-logs
+          V="${{ steps.check.outputs.version }}"
+          ls -la dist
+          FILES="dist/GitarOgren-Kurulum-$V.exe dist/GitarOgren-Kurulum-$V.exe.blockmap dist/latest.yml"
+          if gh release view "v$V" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "v$V" $FILES --clobber --repo "$GITHUB_REPOSITORY"
+          else
+            gh release create "v$V" $FILES --title "$V" --notes "Gitar Öğren $V" --target "$GITHUB_SHA" --latest --repo "$GITHUB_REPOSITORY"
+          fi
+          gh release view "v$V" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[] | "\(.name) \(.size)"'
