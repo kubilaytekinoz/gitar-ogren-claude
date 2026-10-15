@@ -54,6 +54,24 @@ jobs:
         run: node scripts/fetch-soundfont.mjs
       - name: Windows kurulum dosyasını hazırla ve yayınla
         if: steps.check.outputs.skip == 'false'
-        run: npx electron-builder --win --publish always
+        shell: bash
+        run: |
+          set -o pipefail
+          npx electron-builder --win --publish always 2>&1 | tee build.log
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DEBUG: electron-builder
+      # Hata olursa kaydı ci-logs dalına koy (giriş yapmadan okunabilsin diye)
+      - name: Hata kaydını sakla
+        if: failure()
+        shell: bash
+        run: |
+          git config user.name "ci"
+          git config user.email "ci@users.noreply.github.com"
+          cp build.log /tmp/build.log 2>/dev/null || echo "kayıt yok" > /tmp/build.log
+          git checkout --orphan ci-logs
+          git rm -rf --cached . > /dev/null
+          cp /tmp/build.log build.log
+          git add build.log
+          git commit -m "derleme kaydı ${GITHUB_SHA}"
+          git push -f origin ci-logs
