@@ -64,7 +64,25 @@ export function renderSongs(root, app) {
       return;
     }
     list.innerHTML = '';
-    for (const s of songs) {
+    // Sıra: senin dosyaların, hazır şarkılar, sonra Riff & Solo paketi
+    const groups = [
+      ['Senin şarkıların', songs.filter((x) => !x.builtIn)],
+      ['Hazır şarkılar', songs.filter((x) => x.builtIn && x.group !== 'riff')],
+      ['Riff & Solo alıştırmaları', songs.filter((x) => x.group === 'riff')],
+    ];
+    for (const [label, items] of groups) {
+      if (!items.length) continue;
+      const head = h(`<h2 style="margin:26px 0 6px">${esc(label)}</h2>`);
+      if (label.startsWith('Riff')) head.insertAdjacentHTML('beforeend', '<p class="muted small" style="font-weight:400;margin-top:4px">Kolaydan zora sıralı. Her biri kısa; Döngü ile tekrar tekrar çal, hızı yavaştan başlat.</p>');
+      list.appendChild(head);
+      for (const s of items) addRow(s, highlight);
+    }
+    return;
+  }
+
+  function addRow(s, highlight = []) {
+    const p = getProgress();
+    {
       const best = p.songBest[s.id];
       const row = h(`
         <div class="song" ${highlight.includes(s.id) ? 'style="background:var(--amber-soft)"' : ''}>

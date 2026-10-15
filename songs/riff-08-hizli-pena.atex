@@ -1,0 +1,23 @@
+\title "8 · Hızlı Pena (16'lık)"
+\artist "Riff & Solo · Claude · sürekli aşağı-yukarı alternatif pena"
+\tempo 80
+.
+\track "Senin Partin" { instrument overdrivenguitar volume 13 }
+  \staff {score tabs}
+  \tuning E4 B3 G3 D3 A2 E2
+  \ts (4 4) \ro :16 0.6 0.6 0.6 0.6 3.6 3.6 3.6 3.6 0.6 0.6 0.6 0.6 2.5 2.5 2.5 2.5 |
+  :16 0.6 0.6 0.6 0.6 3.6 3.6 3.6 3.6 :8 5.6 3.6 2.5 0.5 |
+  :16 0.6 0.6 0.6 0.6 3.6 3.6 3.6 3.6 0.6 0.6 0.6 0.6 2.5 2.5 2.5 2.5 |
+  \rc 2 :16 0.6 0.6 0.6 0.6 :4 r :2 0.6
+\track "Bas" { instrument electricbassfinger volume 12 }
+  \staff {tabs}
+  \tuning G2 D2 A1 E1
+  \ts (4 4) \ro :4 0.4 2.3 0.4 2.3 |
+  :4 0.4 2.3 0.4 2.3 |
+  :4 0.4 2.3 0.4 2.3 |
+  \rc 2 :4 0.4 2.3 0.4 2.3
+\track "Davul" { instrument percussion volume 12 }
+  \ts (4 4) \ro :8 (36 42) 42 (38 42) 42 (36 42) (36 42) (38 42) 42 |
+  :8 (36 42) 42 (38 42) 42 (36 42) (36 42) (38 42) 42 |
+  :8 (36 42) 42 (38 42) 42 (36 42) (36 42) (38 42) 42 |
+  \rc 2 :8 (36 42) 42 (38 42) 42 (36 42) (36 42) (38 42) 42

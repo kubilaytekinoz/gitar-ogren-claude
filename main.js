@@ -96,7 +96,7 @@ function listSongs() {
     for (const f of fs.readdirSync(builtIn).sort()) {
       if (!f.endsWith('.atex')) continue;
       const m = readTexMeta(path.join(builtIn, f));
-      out.push({ id: 'b:' + f, url: 'app://local/songs/' + encodeURIComponent(f), file: f, format: 'tex', builtIn: true, title: m.title || f, artist: m.artist || '' });
+      out.push({ id: 'b:' + f, url: 'app://local/songs/' + encodeURIComponent(f), file: f, format: 'tex', builtIn: true, group: f.startsWith('riff-') ? 'riff' : 'song', title: m.title || f, artist: m.artist || '' });
     }
   }
   const ud = userSongsDir();

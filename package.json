@@ -1,7 +1,7 @@
 {
   "name": "gitar-ogren",
   "productName": "Gitar Öğren",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Türkçe şarkılarla gitar öğrenme: bastığın notayı dinler, doğru mu yanlış mı gösterir.",
   "main": "main.js",
   "author": "Kubilay Tekinöz",

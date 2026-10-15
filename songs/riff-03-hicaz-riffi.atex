@@ -1,0 +1,23 @@
+\title "3 · Hicaz Riffi"
+\artist "Riff & Solo · Claude · Mi hicaz (Mi Fa Sol# La Si Do), Anadolu rock havası"
+\tempo 100
+.
+\track "Senin Partin" { instrument overdrivenguitar volume 13 }
+  \staff {score tabs}
+  \tuning E4 B3 G3 D3 A2 E2
+  \ts (4 4) \ro :8 0.6 1.6 4.6 1.6 :4 0.6 0.6 |
+  :8 0.5 4.6 1.6 4.6 :4 0.5 r |
+  :8 2.5 3.5 2.5 0.5 4.6 0.5 4.6 1.6 |
+  \rc 2 :8 0.6 1.6 0.6 1.6 :2 0.6
+\track "Bas" { instrument electricbassfinger volume 12 }
+  \staff {tabs}
+  \tuning G2 D2 A1 E1
+  \ts (4 4) \ro :4 0.4 2.3 0.4 2.3 |
+  :4 0.4 2.3 0.4 2.3 |
+  :4 0.4 2.3 0.4 2.3 |
+  \rc 2 :4 0.4 2.3 0.4 2.3
+\track "Darbuka" { instrument percussion volume 12 }
+  \ts (4 4) \ro :8 64 60 r 60 64 r 60 r |
+  :8 64 60 r 60 64 r 60 r |
+  :8 64 60 r 60 64 r 60 r |
+  \rc 2 :8 64 60 r 60 64 r 60 r

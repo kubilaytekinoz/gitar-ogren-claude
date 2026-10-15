@@ -1,0 +1,23 @@
+\title "1 · Bozkır Riffi"
+\artist "Riff & Solo · Claude · Mi minör pentatonik, kalın teller"
+\tempo 92
+.
+\track "Senin Partin" { instrument overdrivenguitar volume 13 }
+  \staff {score tabs}
+  \tuning E4 B3 G3 D3 A2 E2
+  \ts (4 4) \ro :8 0.6 0.6 3.6 0.6 :4 2.5 :8 0.5 2.5 |
+  :8 0.6 0.6 3.6 0.6 :8 2.5 0.5 :4 3.6 |
+  :8 0.6 0.6 3.6 0.6 :4 2.5 :8 0.5 2.5 |
+  \rc 2 :8 0.6 3.6 0.5 2.5 :2 0.6
+\track "Bas" { instrument electricbassfinger volume 12 }
+  \staff {tabs}
+  \tuning G2 D2 A1 E1
+  \ts (4 4) \ro :4 0.4 2.3 0.4 2.3 |
+  :4 0.4 2.3 0.4 2.3 |
+  :4 0.4 2.3 0.4 2.3 |
+  \rc 2 :4 0.4 2.3 0.4 2.3
+\track "Davul" { instrument percussion volume 12 }
+  \ts (4 4) \ro :8 (36 42) 42 (38 42) 42 (36 42) (36 42) (38 42) 42 |
+  :8 (36 42) 42 (38 42) 42 (36 42) (36 42) (38 42) 42 |
+  :8 (36 42) 42 (38 42) 42 (36 42) (36 42) (38 42) 42 |
+  \rc 2 :8 (36 42) 42 (38 42) 42 (36 42) (36 42) (38 42) 42

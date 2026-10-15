@@ -1,0 +1,30 @@
+\title "7 · Ağır Solo (titreşimli)"
+\artist "Riff & Solo · Claude · La minör, uzun notalarda vibrato yap"
+\tempo 70
+.
+\track "Senin Partin" { instrument overdrivenguitar volume 13 }
+  \staff {score tabs}
+  \tuning E4 B3 G3 D3 A2 E2
+  \ts (4 4) \ro :4 5.1 7.1 :2 8.1{v} |
+  :4 7.1 5.1 :2 6.2{v} |
+  :4 5.2 6.2 8.2 5.1 |
+  \rc 2 :4 4.1 7.1 :2 5.1{v}
+\track "Ritim Gitarı" { instrument overdrivenguitar volume 6 }
+  \staff {tabs}
+  \tuning E4 B3 G3 D3 A2 E2
+  \ts (4 4) \ro :2 (0.5 2.4 2.3) (0.5 2.4 2.3) |
+  :2 (1.6 3.5 3.4) (1.6 3.5 3.4) |
+  :2 (3.5 5.4 5.3) (3.5 5.4 5.3) |
+  \rc 2 :4 (0.6 2.5 2.4) (0.6 2.5 2.4) :4 (0.5 2.4 2.3) (0.5 2.4 2.3)
+\track "Bas" { instrument electricbassfinger volume 12 }
+  \staff {tabs}
+  \tuning G2 D2 A1 E1
+  \ts (4 4) \ro :4 0.3 2.2 0.3 2.2 |
+  :4 1.4 3.3 1.4 3.3 |
+  :4 3.3 0.1 3.3 0.1 |
+  \rc 2 :4 0.4 0.4 0.3 0.3
+\track "Davul" { instrument percussion volume 11 }
+  \ts (4 4) \ro :4 (36 42) 42 (38 42) 42 |
+  :4 (36 42) 42 (38 42) 42 |
+  :4 (36 42) 42 (38 42) 42 |
+  \rc 2 :4 (36 42) 42 (38 42) 42
