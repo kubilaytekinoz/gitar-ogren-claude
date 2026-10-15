@@ -36,7 +36,7 @@ npm test            # nota algılama ve şarkı dosyası testleri
 npm run songs       # hazır şarkıları yeniden üret
 ```
 
-Yeni sürüm: `package.json` içindeki sürümü artır, `vX.Y.Z` etiketi gönder. GitHub Actions Windows kurulum dosyasını hazırlayıp Sürümler'e koyar; programlar kendini günceller.
+Yeni sürüm: `package.json` içindeki sürümü artırıp `main`'e gönder. GitHub Actions Windows kurulum dosyasını hazırlayıp Sürümler'e koyar; programlar kendini günceller.
 
 ## Lisanslar
 
