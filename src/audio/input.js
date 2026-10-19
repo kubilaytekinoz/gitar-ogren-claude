@@ -162,7 +162,7 @@ class AudioInput extends EventTarget {
     if (!this.analyser) return null;
     const sr = this.ctx.sampleRate;
     // vuruş, son 1024 örneklik pencerede fark edildiği için biraz geriden başla
-    const n = Math.min(FRAME, Math.round(((now - this.lastAttack) / 1000) * sr) + 1024);
+    const n = Math.min(8192, Math.round(((now - this.lastAttack) / 1000) * sr) + 1024);
     return this.buf.subarray(FRAME - n);
   }
 

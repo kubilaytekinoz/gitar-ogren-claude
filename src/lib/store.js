@@ -11,7 +11,7 @@ export const DEFAULT_SETTINGS = {
   guide: false, // kendi partini kısık sesle duy
   metronome: false,
   countIn: true,
-  waitMode: false,
+  waitMode: true,
   volume: 0.9,
 };
 
@@ -23,6 +23,12 @@ let progress = { days: {}, warmupTempo: {}, songBest: {}, firstDay: null, lastSo
 export async function loadAll() {
   const s = (await api.store.get('settings')) || {};
   settings = { ...DEFAULT_SETTINGS, ...s };
+  // 0.1.6: bekle modu (sen çaldıkça ilerler) başlangıç için varsayılan açık
+  if (!settings.v || settings.v < 2) {
+    settings.waitMode = true;
+    settings.v = 2;
+    api.store.set('settings', settings);
+  }
   const p = (await api.store.get('progress')) || {};
   progress = { ...progress, ...p };
   if (!progress.firstDay) {

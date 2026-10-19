@@ -44,7 +44,7 @@ export function openPractice(root, opts) {
         <div class="chips">
           <label class="ctrl small muted" data-r="trackWrap" hidden>Parti <select data-r="track"></select></label>
           <button class="chip" data-a="listen" title="Gitarsız dinle: kendi partin de çalar, puan tutulmaz">Dinleme modu</button>
-          <button class="chip" data-a="wait" title="Doğru notayı basana kadar şarkı durur">Bekle</button>
+          <button class="chip" data-a="wait" title="Sen doğru çalınca ilerler; çalmazsan sıradaki notada bekler">Bekle modu</button>
           <button class="chip" data-a="guide" title="Kendi partini kısık sesle duy">Kılavuz ses</button>
           <button class="chip" data-a="metro">Metronom</button>
           <button class="chip" data-a="loop" title="Tabda fareyle bir bölüm seç, sonra döngüye al">Döngü</button>
@@ -117,6 +117,7 @@ export function openPractice(root, opts) {
     },
     player: {
       playerMode: AT.PlayerMode.EnabledSynthesizer,
+      bufferTimeInMilliseconds: 1000, // işlemci anlık yoğunlaşınca ses takılmasın
       soundFont: soundFontUrl,
       scrollElement: $('sheet'),
       enableCursor: true,
@@ -154,7 +155,7 @@ export function openPractice(root, opts) {
       api = new AT.AlphaTabApi(atEl, settings);
       api.masterVolume = s.volume;
       api.metronomeVolume = s.metronome ? 1 : 0;
-      api.countInVolume = s.countIn ? 1 : 0;
+      api.countInVolume = 0; // geri sayım yalnızca baştan başlarken (startPlayback)
       api.error.on((e) => {
         console.error(e);
         showLoading('Bir sorun oluştu: ' + (e?.message || e));
@@ -210,6 +211,9 @@ export function openPractice(root, opts) {
     };
   }
 
+  const chordCache = { key: '', at: 0, hit: false };
+  let selfPauseAt = -Infinity;
+  let consumedWall = -Infinity; // bekle modunda en son kullanılan vuruşun saati
   let pendingSeek = null;
   function applyPendingSeek() {
     if (!pendingSeek || !api || !data) return;
@@ -222,7 +226,7 @@ export function openPractice(root, opts) {
     clock.wall = performance.now();
     clock.moving = false;
     skipBefore(lastSongMs);
-    if (play) setTimeout(() => api.play(), 60);
+    if (play) setTimeout(() => startPlayback(false), 60);
   }
 
   // Belli bir andan önceki notaları puanlamaya katma (dinleme modundan çıkınca, parti değişince)
@@ -235,6 +239,7 @@ export function openPractice(root, opts) {
     judgeIdx = 0;
     while (judgeIdx < data.events.length && data.events[judgeIdx].state !== 'pending') judgeIdx++;
     consumedAttack = -Infinity;
+    consumedWall = input.lastAttack;
     waiting = null;
     updateHud(true);
   }
@@ -293,6 +298,15 @@ export function openPractice(root, opts) {
 
   function onPosition(e) {
     const now = performance.now();
+    // Bizim yaptığımız duraklatmadan hemen sonra ses motoru konumu "atlama" olarak
+    // bildiriyor; bunu kullanıcının başa sarması sanıp beklemeyi iptal etmeyelim.
+    if (e.isSeek && now - selfPauseAt < 800) {
+      lastTick = e.currentTick;
+      if (data) lastSongMs = data.tempo.tickToMs(lastTick);
+      if (!waiting) { clock.base = lastSongMs; clock.wall = now; }
+      clock.moving = false;
+      return;
+    }
     const back = e.currentTick < lastTick - TICKS_PER_QUARTER / 2;
     const moved = e.currentTick !== lastTick;
     lastTick = e.currentTick;
@@ -331,6 +345,7 @@ export function openPractice(root, opts) {
     judgeIdx = 0;
     while (judgeIdx < data.events.length && data.events[judgeIdx].state !== 'pending') judgeIdx++;
     consumedAttack = -Infinity;
+    consumedWall = input.lastAttack;
     streakN = 0;
     waiting = null;
     finishedShown = false;
@@ -338,7 +353,7 @@ export function openPractice(root, opts) {
   }
 
   // ---- değerlendirme ----
-  function eventMatches(ev) {
+  function eventMatches(ev, lenient = false) {
     const st = input.state;
     if (!input.running) return false;
     if (ev.notes.length === 1) {
@@ -355,7 +370,14 @@ export function openPractice(root, opts) {
     if (performance.now() - input.lastAttack < 90) return false;
     const post = input.postAttack();
     if (!post) return false;
-    return matchChordAfterAttack(post, input.sampleRate, ev.notes.map((n) => n.midi)).hit;
+    // aynı akor için sonucu kısa süre sakla (her karede ağır hesap yapılmasın)
+    const key = ev.id + ':' + input.lastAttack;
+    if (chordCache.key === key && performance.now() - chordCache.at < 45) return chordCache.hit;
+    const r = matchChordAfterAttack(post, input.sampleRate, ev.notes.map((n) => n.midi));
+    // bekle modunda 3+ notalı akorlarda bir tel eksik olsa da kabul et
+    const hit = r.hit || (lenient && r.total >= 3 && r.found >= r.total - 1);
+    chordCache.key = key; chordCache.at = performance.now(); chordCache.hit = hit;
+    return hit;
   }
 
   function attackSongMs(now, songNowAdj, ev) {
@@ -373,24 +395,42 @@ export function openPractice(root, opts) {
     const t = songMs - cfg.latencyMs * speed;
     const evs = data.events;
 
-    if (waiting) {
-      const wallAttack = waiting.notes.length === 1 ? Math.max(input.lastAttack, input.lastPitchChange) : input.lastAttack;
-      if (wallAttack > waitStart - 150 && eventMatches(waiting)) {
-        markHit(waiting, 0, now);
-        waiting = null;
-        api.play();
-      }
-      return;
-    }
-
-    if (cfg.waitMode && playing) {
-      const ev = evs[judgeIdx];
-      if (ev && ev.state === 'pending' && ev.ms <= songMs) {
-        waiting = ev;
-        waitStart = now;
-        api.pause();
+    if (cfg.waitMode) {
+      // BEKLE MODU: şarkı sıradaki notada durur, sen doğru çalınca devam eder.
+      // Notaya biraz erken basarsan da kabul edilir; o zaman hiç durmadan akar.
+      const ev = waiting || evs[judgeIdx];
+      if (!ev || ev.state !== 'pending') return;
+      const prev = evs[evs.indexOf(ev) - 1];
+      const earliest = Math.max(prev ? prev.ms + 40 * speed : -Infinity, ev.ms - 1200 * speed);
+      // vuruşun gerçek saati (tek notada parmakla geçiş de sayılır)
+      const single = ev.notes.length === 1;
+      const wall = single && input.state.midi === ev.notes[0].midi ? Math.max(input.lastAttack, input.lastPitchChange) : input.lastAttack;
+      const songAt = waiting ? ev.ms : t - (now - wall) * speed;
+      // aynı vuruş iki notaya sayılmasın (tekrarlanan notalarda önemli)
+      const fresh = wall > consumedWall && (waiting || songAt >= earliest);
+      if (fresh && eventMatches(ev, true)) {
+        consumedWall = wall;
+        consumedAttack = songAt;
+        markHit(ev, 0, now);
+        while (judgeIdx < evs.length && evs[judgeIdx].state !== 'pending') judgeIdx++;
+        if (waiting) {
+          waiting = null;
+          startPlayback(false);
+        }
         return;
       }
+      // müzik gerçekten akmaya başlamadan (geri sayım vb.) durdurma: ses motoru kilitleniyordu
+      // Notayı duymak birkaç salise sürer: zamanında çalana bu payı tanı, yoksa her notada takılır
+      const grace = (cfg.latencyMs + 140) * speed;
+      if (!waiting && playing && clock.moving && ev.ms + grace <= songMs) {
+        waiting = ev;
+        waitStart = now;
+        clock.base = songMs;
+        clock.wall = now;
+        selfPauseAt = now;
+        api.pause();
+      }
+      return;
     }
 
     for (let i = judgeIdx; i < evs.length; i++) {
@@ -544,6 +584,17 @@ export function openPractice(root, opts) {
     if (api) api.playbackSpeed = v;
     $('speed').textContent = `%${Math.round(v * 100)}`;
   }
+  // Çalmayı başlat. Ses motoru her "devam"da bir ölçü sayıyordu; artık yalnızca
+  // şarkının (ya da döngünün) başından başlarken sayar.
+  function startPlayback(allowCountIn = true) {
+    if (!api) return;
+    const start = api.playbackRange ? api.playbackRange.startTick : 0;
+    const atStart = lastTick <= start + TICKS_PER_QUARTER / 4;
+    const started = data && data.events.some((e) => e.state === 'hit' || e.state === 'miss');
+    api.countInVolume = allowCountIn && getSettings().countIn && atStart && !started ? 1 : 0;
+    api.play();
+  }
+
   function restart(play) {
     if (!api) return;
     api.stop();
@@ -555,15 +606,26 @@ export function openPractice(root, opts) {
     clock.wall = performance.now();
     clock.moving = false;
     resetJudging(lastSongMs);
-    if (play) setTimeout(() => api.play(), 60);
+    if (play) setTimeout(startPlayback, 60);
   }
   function togglePlay() {
-    if (!api || !ready) return;
+    if (!api) return;
+    if (!ready) {
+      toast('Şarkı hâlâ hazırlanıyor, bir saniye…');
+      return;
+    }
     $('result').hidden = true;
     if (waiting) {
+      // bekleme sırasında Çal'a basılırsa notayı atla ve devam et
+      waiting.state = 'skip';
       waiting = null;
+      startPlayback(false);
+      return;
     }
-    api.playPause();
+    if (playing) {
+      selfPauseAt = performance.now();
+      api.pause();
+    } else startPlayback();
   }
   function syncToggles() {
     const c = getSettings();
@@ -623,13 +685,17 @@ export function openPractice(root, opts) {
 
   function onKey(e) {
     if (e.target.closest('select, input')) return;
-    if (e.code === 'Space') { e.preventDefault(); togglePlay(); }
+    if (e.code === 'Space') { e.preventDefault(); if (!e.repeat) togglePlay(); }
     else if (e.code === 'Escape') exit();
     else if (e.code === 'Home') restart(false);
     else if (e.key === '+' || e.code === 'NumpadAdd') btn('faster').click();
     else if (e.key === '-' || e.code === 'NumpadSubtract') btn('slower').click();
   }
   window.addEventListener('keydown', onKey);
+  // Fareyle basılan düğme odakta kalınca boşluk tuşu onu da tetikliyordu (çal + durdur = hiçbir şey)
+  view.addEventListener('click', (e) => e.target.closest('button')?.blur());
+  const onKeyUp = (e) => { if (e.code === 'Space' && !e.target.closest('select, input')) e.preventDefault(); };
+  window.addEventListener('keyup', onKeyUp);
 
   // ---- ana döngü ----
   let raf = 0;
@@ -650,6 +716,12 @@ export function openPractice(root, opts) {
       const ni = nxt ? data.events.indexOf(nxt) : -1;
       fret.show(nxt, ni >= 0 ? data.events.slice(ni + 1, ni + 3) : []);
     }
+    if (waiting) {
+      const fb = $('fb');
+      fb.className = 'feedback wait';
+      fb.textContent = waiting.notes.length > 1 ? 'Akoru bas, devam edeyim' : 'Notayı bas, devam edeyim';
+      clearTimeout(fbTimer);
+    }
     const st = input.state;
     $('heard').textContent = st.midi != null ? noteLabel(st.midi) : '–';
     if (!listen) $('inputWarn').hidden = input.running;
@@ -666,6 +738,7 @@ export function openPractice(root, opts) {
     destroyed = true;
     cancelAnimationFrame(raf);
     window.removeEventListener('keydown', onKey);
+    window.removeEventListener('keyup', onKeyUp);
     addPracticeSeconds(Math.round(practiceAcc));
     highway.destroy();
     try { api?.destroy(); } catch { /* yok say */ }
@@ -681,6 +754,7 @@ export function openPractice(root, opts) {
     get playing() { return playing; },
     get ready() { return ready; },
     get speed() { return speed; },
+    get moving() { return clock.moving; },
     songMs: () => songMsNow(performance.now()),
     stats: () => stats(),
     play: () => togglePlay(),
