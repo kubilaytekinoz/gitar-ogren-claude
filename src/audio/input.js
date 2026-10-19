@@ -6,6 +6,24 @@ const FRAME = 16384; // akorlar için uzun pencere
 const PITCH_FRAME = 4096; // tek nota için kısa pencere
 const LOOP_MS = 12;
 
+/** Tarayıcının İngilizce ses hatalarını anlaşılır Türkçeye çevirir. */
+export function explainError(e) {
+  const name = e?.name || '';
+  let msg;
+  if (name === 'NotReadableError' || /could not start|not readable/i.test(e?.message || '')) {
+    msg = 'Windows amfinin sesini açamadı. Amfiyi kullanan başka bir program açıksa (Blackstar Architect, kayıt programları, Discord vb.) kapat, sonra USB kablosunu çıkarıp tekrar tak.';
+  } else if (name === 'NotAllowedError' || name === 'SecurityError') {
+    msg = 'Windows mikrofon/ses girişi iznini engelliyor. Windows Ayarlar → Gizlilik ve güvenlik → Mikrofon bölümünden "Masaüstü uygulamalarının mikrofona erişmesine izin ver" seçeneğini aç.';
+  } else if (name === 'NotFoundError' || name === 'OverconstrainedError') {
+    msg = 'Seçili ses girişi bulunamadı. Kabloyu kontrol edip Ayarlar\'da Yenile\'ye bas.';
+  } else {
+    msg = 'Ses girişi açılamadı (' + (e?.message || name || e) + ').';
+  }
+  const err = new Error(msg);
+  err.original = e;
+  return err;
+}
+
 class AudioInput extends EventTarget {
   constructor() {
     super();
@@ -57,18 +75,26 @@ class AudioInput extends EventTarget {
 
   async start(deviceId) {
     await this.stop();
-    const constraints = {
-      audio: {
-        deviceId: deviceId ? { exact: deviceId } : undefined,
-        echoCancellation: false,
-        noiseSuppression: false,
-        autoGainControl: false,
-        channelCount: { ideal: 2 },
-        latency: { ideal: 0.005 },
-      },
-      video: false,
-    };
-    this.stream = await navigator.mediaDevices.getUserMedia(constraints);
+    const id = deviceId ? { exact: deviceId } : undefined;
+    // Bazı USB amfiler (ör. ID:Core V4, 4 kanallı) ayrıntılı isteklerde "ses kaynağı
+    // başlatılamadı" hatası veriyor: sırayla daha basit isteklerle tekrar dene.
+    const attempts = [
+      { deviceId: id, echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: { ideal: 2 }, latency: { ideal: 0.005 } },
+      { deviceId: id, echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+      { deviceId: id },
+    ];
+    let lastErr = null;
+    for (const audio of attempts) {
+      try {
+        this.stream = await navigator.mediaDevices.getUserMedia({ audio, video: false });
+        break;
+      } catch (e) {
+        lastErr = e;
+        if (e && (e.name === 'NotAllowedError' || e.name === 'SecurityError')) break;
+        await new Promise((r) => setTimeout(r, 300));
+      }
+    }
+    if (!this.stream) throw explainError(lastErr);
     const track = this.stream.getAudioTracks()[0];
     this.deviceId = track.getSettings().deviceId || deviceId || null;
     this.deviceLabel = track.label;

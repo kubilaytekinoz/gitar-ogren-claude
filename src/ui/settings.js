@@ -22,6 +22,7 @@ export function renderSettings(root, app) {
             <button class="btn" data-a="refresh">Yenile</button>
             <button class="btn" data-a="toggle">${input.running ? 'Durdur' : 'Dinlemeye başla'}</button>
           </div>
+          <div class="input-err" data-r="err" ${app.inputError ? '' : 'hidden'}>${esc(app.inputError || '')}</div>
           <div class="hint">Blackstar ID:Core USB ile bağlıysa listede "Blackstar" ya da "USB Audio" olarak görünür. Görmüyorsan kabloyu çıkarıp tak, sonra Yenile'ye bas.</div>
         </div>
         <div class="field">
@@ -83,8 +84,14 @@ export function renderSettings(root, app) {
   }
   fillDevices();
 
+  const showErr = () => {
+    $('err').hidden = !app.inputError;
+    $('err').textContent = app.inputError || '';
+  };
+  window.addEventListener('input-error', showErr);
   sel.onchange = async () => {
     const d = await app.startInput(sel.value);
+    showErr();
     if (d) toast('Dinleniyor: ' + d.label);
     page.querySelector('[data-a="toggle"]').textContent = 'Durdur';
   };
@@ -95,6 +102,7 @@ export function renderSettings(root, app) {
       e.target.textContent = 'Dinlemeye başla';
     } else {
       const d = await app.startInput(sel.value);
+      showErr();
       if (d) e.target.textContent = 'Durdur';
     }
   };
@@ -133,5 +141,8 @@ export function renderSettings(root, app) {
     raf = requestAnimationFrame(frame);
   };
   raf = requestAnimationFrame(frame);
-  return () => cancelAnimationFrame(raf);
+  return () => {
+    cancelAnimationFrame(raf);
+    window.removeEventListener('input-error', showErr);
+  };
 }

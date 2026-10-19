@@ -43,12 +43,15 @@ export const app = {
   async startInput(deviceId) {
     try {
       const d = await input.start(deviceId);
+      app.inputError = null;
       setSetting('inputDeviceId', d.id);
       input.setGain(getSettings().inputGain);
       return d;
     } catch (e) {
       console.error(e);
-      toast('Gitar girişi açılamadı: ' + (e?.message || e));
+      app.inputError = e?.message || String(e);
+      toast(app.inputError, 9000);
+      window.dispatchEvent(new Event('input-error'));
       return null;
     }
   },
