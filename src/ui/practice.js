@@ -329,6 +329,7 @@ export function openPractice(root, opts) {
     if (back || e.isSeek) {
       // şarkı bittiğinde başa sarılır: sonuçları silme (döngü hariç)
       const complete = judgeIdx >= data.events.length;
+      if (back && ladder && api?.isLooping) ladderStep();
       if (!complete || api?.isLooping) resetJudging(reported);
     }
   }
@@ -345,6 +346,7 @@ export function openPractice(root, opts) {
         ev.state = 'pending';
         ev.offset = null;
         ev.hitAt = 0;
+        ev.waited = 0;
       }
     }
     judgeIdx = 0;
@@ -416,6 +418,7 @@ export function openPractice(root, opts) {
       if (fresh && eventMatches(ev, true)) {
         consumedWall = wall;
         consumedAttack = songAt;
+        ev.waited = waiting ? now - waitStart : 0; // bekle modunda takıldığın süre
         markHit(ev, 0, now);
         while (judgeIdx < evs.length && evs[judgeIdx].state !== 'pending') judgeIdx++;
         if (waiting) {
@@ -503,7 +506,8 @@ export function openPractice(root, opts) {
     const early = timed.filter((e) => e.offset < -tol * 0.45).length;
     const late = timed.filter((e) => e.offset > tol * 0.45).length;
     const missByBar = new Map();
-    for (const e of done) if (e.state === 'miss') missByBar.set(e.barIndex, (missByBar.get(e.barIndex) || 0) + 1);
+    // kaçan nota ya da bekle modunda 1,2 saniyeden uzun takıldığın nota "hata" sayılır
+    for (const e of done) if (struggled(e)) missByBar.set(e.barIndex, (missByBar.get(e.barIndex) || 0) + 1);
     return {
       total: evs.length, judged: done.length, hits: hits.length,
       accuracy: done.length ? Math.round((hits.length / done.length) * 100) : 0,
@@ -537,7 +541,7 @@ export function openPractice(root, opts) {
     const stars = acc >= 95 ? 3 : acc >= 80 ? 2 : acc >= 60 ? 1 : 0;
     const res = { accuracy: acc, stars, speed, level, hits: st.hits, total: st.total, bestStreak: st.bestStreak };
     opts.onResult?.(res);
-    const weak = [...st.missByBar.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4).sort((a, b) => a[0] - b[0]);
+    const weak = weakRanges(st.missByBar);
     const timedTotal = st.perfect + st.early + st.late;
     const pct = (n) => (timedTotal ? Math.round((n / timedTotal) * 100) : 0);
     const msg = acc >= 95 ? 'Mükemmel! Bir sonraki adıma hazırsın.' : acc >= 80 ? 'Çok iyi gidiyor.' : acc >= 60 ? 'Fena değil, biraz daha tekrar.' : 'Yavaşlatıp tekrar dene; hız sonra gelir.';
@@ -550,7 +554,7 @@ export function openPractice(root, opts) {
         <p>${msg}</p>
         <p class="muted small">${st.hits} / ${st.total} nota doğru · en uzun seri ${st.bestStreak} · hız %${Math.round(speed * 100)}</p>
         ${timedTotal && !cfgNow().waitMode ? `<p class="small">Zamanlama: %${pct(st.perfect)} tam yerinde, %${pct(st.early)} erken, %${pct(st.late)} geç</p>` : ''}
-        ${weak.length ? `<div><p class="small muted" style="margin-bottom:8px">Zorlandığın yerler — tıkla, o bölümü döngüde çalış:</p><div class="weak">${weak.map(([b]) => `<button class="btn" data-bar="${b}">${b + 1}. ölçü</button>`).join('')}</div></div>` : ''}
+        ${weak.length ? `<div><p class="small muted" style="margin-bottom:8px">En çok takıldığın yerler. Tıkla: o bölüm döngüye girer, %60 hızdan başlar, temiz çaldıkça hızlanır (hız merdiveni).</p><div class="weak">${weak.map((w) => `<button class="btn ${w === weak[0] ? 'primary' : ''}" data-from="${w.from}" data-to="${w.to}">${w.from === w.to ? `${w.from + 1}. ölçü` : `${w.from + 1}–${w.to + 1}. ölçüler`} · ${w.misses} hata</button>`).join('')}</div></div>` : ''}
         ${acc >= 90 && speed < 1 ? '<p class="small" style="color:var(--turq)">Bu hızda rahatsın, hızı biraz artırmayı dene.</p>' : ''}
         <div class="row">
           <button class="btn" data-x="again">Tekrar çal</button>
@@ -563,13 +567,60 @@ export function openPractice(root, opts) {
     box.querySelector('[data-x="close"]').onclick = () => exit();
     const nx = box.querySelector('[data-x="next"]');
     if (nx) nx.onclick = () => { cleanup(); opts.onNext(); };
-    box.querySelectorAll('[data-bar]').forEach((b) => (b.onclick = () => {
+    box.querySelectorAll('[data-from]').forEach((b) => (b.onclick = () => {
       box.hidden = true;
-      loopBars(Number(b.dataset.bar), Number(b.dataset.bar) + 1);
+      startLadder(Number(b.dataset.from), Number(b.dataset.to));
     }));
   }
 
-  function loopBars(fromBar, toBar) {
+  /** Hatalı ölçüleri yan yana olanları birleştirerek bölümlere ayırır; en kötü 3 bölüm. */
+  function weakRanges(missByBar) {
+    const bars = [...missByBar.keys()].sort((a, b) => a - b);
+    const ranges = [];
+    for (const b of bars) {
+      const last = ranges[ranges.length - 1];
+      if (last && b - last.to <= 1 && b - last.from < 4) { last.to = b; last.misses += missByBar.get(b); }
+      else ranges.push({ from: b, to: b, misses: missByBar.get(b) });
+    }
+    // tek ölçülük bölümü bir sonraki ölçüyle birlikte çal (geçişi de çalışmak için)
+    for (const r of ranges) if (r.from === r.to) r.to = Math.min(score.masterBars.length - 1, r.from + 1);
+    return ranges.sort((a, b) => b.misses - a.misses).slice(0, 3);
+  }
+
+  // ---- hız merdiveni: bölüm döngüde, her temiz turda hız bir basamak artar ----
+  let ladder = null;
+  const LADDER = [0.6, 0.75, 0.9, 1];
+  function startLadder(from, to) {
+    ladder = { from, to, clean: 0 };
+    loopBars(from, to, LADDER[0]);
+  }
+  function ladderStep() {
+    const r = api.playbackRange;
+    if (!r) { ladder = null; return; }
+    const evs = data.events.filter((e) => e.tick >= r.startTick && e.tick < r.endTick);
+    const judged = evs.filter((e) => e.state === 'hit' || e.state === 'miss');
+    if (!evs.length || judged.length < evs.length * 0.6) return; // tur tamamlanmadı
+    const acc = Math.round((judged.filter((e) => !struggled(e)).length / judged.length) * 100);
+    const i = LADDER.indexOf(nearestOf(LADDER, speed));
+    if (acc >= 90) {
+      if (i < LADDER.length - 1) {
+        setSpeed(LADDER[i + 1]);
+        toast(`%${acc} temiz! Hız %${Math.round(LADDER[i + 1] * 100)}'e çıktı (basamak ${i + 2}/${LADDER.length})`);
+      } else if (++ladder.clean >= 2) {
+        toast('Bu bölüm tamam! Tam hızda iki kez temiz çaldın. Döngüyü kapatıp şarkıya devam edebilirsin.', 6000);
+        ladder = null;
+      } else toast(`Tam hızda %${acc}! Bir tur daha temiz çal, bölüm tamam.`);
+    } else if (acc < 60 && i > 0) {
+      setSpeed(LADDER[i - 1]);
+      toast(`%${acc}: hız %${Math.round(LADDER[i - 1] * 100)}'e indi, acele yok`);
+    } else {
+      toast(`%${acc}: aynı hızda bir tur daha (%90 olunca hızlanır)`);
+    }
+  }
+  const struggled = (e) => e.state === 'miss' || (e.state === 'hit' && e.waited > 1200);
+  const nearestOf = (list, v) => list.reduce((a, b) => (Math.abs(b - v) < Math.abs(a - v) ? b : a));
+
+  function loopBars(fromBar, toBar, startSpeed = 0.75) {
     const mbs = api.tickCache.masterBars;
     const a = mbs.find((m) => m.masterBar.index === Math.max(0, fromBar));
     const lastIdx = Math.min(score.masterBars.length - 1, toBar);
@@ -578,7 +629,7 @@ export function openPractice(root, opts) {
     api.playbackRange = { startTick: a.start, endTick: b.end };
     api.isLooping = true;
     btn('loop').classList.add('on');
-    if (speed > 0.75) setSpeed(0.75);
+    if (speed > startSpeed || ladder) setSpeed(startSpeed);
     restart(true);
     toast(`${fromBar + 1}–${lastIdx + 1}. ölçüler döngüde`);
   }
@@ -678,6 +729,7 @@ export function openPractice(root, opts) {
     if (api.isLooping) {
       api.isLooping = false;
       api.playbackRange = null;
+      ladder = null;
       btn('loop').classList.remove('on');
       toast('Döngü kapandı');
     } else {
