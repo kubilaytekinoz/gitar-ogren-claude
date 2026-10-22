@@ -1,9 +1,11 @@
 // "Bugün" sayfası: seri, haftalık takvim, günün ısınması, son şarkı.
 import { getProgress, today, dayNumber, dayKey, dayStatus, streak } from '../lib/store.js';
-import { dailyRoutine } from '../music/warmups.js';
+import { dailyRoutine, WARMUPS } from '../music/warmups.js';
 import { input } from '../audio/input.js';
 import { h, esc } from '../lib/dom.js';
 import { startWarmup } from './warmup.js';
+import { PHASES, currentPhase, goalStatus, setPhase, daysInPhase, todayRoutine } from '../music/path.js';
+import { playSong } from './songs.js';
 
 const DAYS = ['Paz', 'Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt'];
 const routineIds = (d) => dailyRoutine(dayNumber(d)).map((w) => w.id);
@@ -19,7 +21,7 @@ function greeting() {
 export function renderHome(root, app) {
   const p = getProgress();
   const t = today();
-  const routine = dailyRoutine(dayNumber());
+  const routine = todayRoutine(t);
   const doneCount = routine.filter((w) => t.warmups[w.id] != null).length;
   const st = streak(routineIds);
   const minutes = Math.round(t.seconds / 60);
@@ -59,6 +61,8 @@ export function renderHome(root, app) {
         </ol>
         <a class="btn primary" href="#/ayarlar">Girişi ayarla</a>
       </div>`}
+
+      ${pathPanel()}
 
       <div class="today-hero">
         <div class="streak">
@@ -111,6 +115,8 @@ export function renderHome(root, app) {
     </div>`);
   root.appendChild(page);
 
+  wirePath(page, app, () => { root.innerHTML = ''; renderHome(root, app); });
+
   page.querySelectorAll('[data-w]').forEach((b) => {
     b.onclick = () => {
       const idx = routine.findIndex((w) => w.id === b.dataset.w);
@@ -124,4 +130,70 @@ export function renderHome(root, app) {
       startWarmup(app, routine, Math.max(0, first), true);
     };
   }
+}
+
+function pathPanel() {
+  const ph = currentPhase();
+  const goals = goalStatus(ph);
+  const done = goals.every((g) => g.done);
+  const days = daysInPhase();
+  const steps = PHASES.map((x) => `<span class="ph ${x.n < ph.n ? 'done' : x.n === ph.n ? 'cur' : ''}" title="${esc(x.title)}">${x.n}</span>`).join('');
+  return `
+    <div class="panel path">
+      <div class="row">
+        <div class="phases">${steps}</div>
+        <div><h2>Faz ${ph.n} · ${esc(ph.title)}</h2><div class="muted small">${esc(ph.weeks)} · ${esc(ph.focus)}</div></div>
+      </div>
+      <div class="path-goals">
+        ${goals.map((g) => `<div class="g ${g.done ? 'done' : ''}">
+          <span>${g.done ? '✓ ' : ''}${esc(g.title)} <b>${g.best || 0}/${g.tempo} BPM</b></span>
+          <div class="meter"><i style="width:${Math.min(100, Math.round(((g.best || 0) / g.tempo) * 100))}%"></i></div>
+          ${g.done ? '' : `<button class="btn ghost small" data-goal="${g.warmup}">Çalış</button>`}
+        </div>`).join('')}
+      </div>
+      <div class="muted small">Hedef: egzersizi en az %90 doğrulukla o tempoda çalmak. Tempo başarına göre kendiliğinden artar.</div>
+      ${ph.songs.length ? `<div class="row path-songs"><span class="muted small">Bu fazın şarkıları:</span>${ph.songs.map((id) => `<button class="btn small" data-song="${esc(id)}">${esc(songName(id))}</button>`).join('')}</div>` : ''}
+      ${!done && days >= 8 ? `<div class="path-tip"><b>${days} gündür bu fazdasın.</b> ${esc(ph.stuck)}</div>` : ''}
+      <div class="row">
+        ${done && ph.n < PHASES.length ? `<button class="btn primary" data-phase="${ph.n + 1}">Faz ${ph.n + 1}'e geç</button><span class="muted small">Hedefler tamam, tebrikler!</span>` : ''}
+        <div class="spacer"></div>
+        ${ph.n > 1 ? `<button class="btn ghost small" data-phase="${ph.n - 1}">← Önceki faz</button>` : ''}
+        ${!done && ph.n < PHASES.length ? `<button class="btn ghost small" data-phase="${ph.n + 1}">Sonraki faza atla →</button>` : ''}
+      </div>
+    </div>`;
+}
+
+const SONG_NAMES = {
+  'b:01-daha-dun-annemizin.atex': 'Daha Dün Annemizin',
+  'b:02-ege-ruzgari.atex': 'Ege Rüzgârı',
+  'b:03-power-chord-yolu.atex': 'Power Chord Yolu',
+  'b:riff-01-bozkir-riffi.atex': 'Bozkır Riffi',
+  'b:riff-02-palm-mute-yolu.atex': 'Palm Mute Yolu',
+  'b:riff-03-hicaz-riffi.atex': 'Hicaz Riffi',
+  'b:riff-04-pentatonik-lick.atex': 'Pentatonik Lick',
+  'b:riff-05-hammer-pull.atex': 'Hammer-on & Pull-off',
+  'b:riff-06-kurdi-solo.atex': 'Kürdi Solo',
+  'b:riff-07-uzun-hava-solo.atex': 'Ağır Solo',
+  'b:riff-08-hizli-pena.atex': 'Hızlı Pena',
+};
+const songName = (id) => SONG_NAMES[id] || id.replace(/^b:|\.atex$/g, '');
+
+function wirePath(page, app, rerender) {
+  page.querySelectorAll('[data-phase]').forEach((b) => {
+    b.onclick = () => {
+      const n = Number(b.dataset.phase);
+      if (n > currentPhase().n && !goalStatus().every((g) => g.done) && !confirm('Hedefler henüz tamam değil. Yine de sonraki faza geçilsin mi?')) return;
+      setPhase(n);
+      rerender();
+    };
+  });
+  page.querySelectorAll('[data-goal]').forEach((b) => {
+    b.onclick = () => startWarmup(app, WARMUPS, WARMUPS.findIndex((w) => w.id === b.dataset.goal), false);
+  });
+  page.querySelectorAll('[data-song]').forEach((b) => {
+    b.onclick = async () => {
+      const song = (await window.gitar.songs.list()).find((s) => s.id === b.dataset.song);
+      if (song) playSong(app, song);
+    };
+  });
 }

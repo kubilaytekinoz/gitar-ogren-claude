@@ -11,6 +11,13 @@ const G5 = '(3.6 5.5 5.4)';
 const C5 = '(3.5 5.4 5.3)';
 const A5 = '(5.6 7.5 7.4)';
 const D5 = '(5.5 7.4 7.3)';
+// 2 telli power chord (kök + beşli): işaret + yüzük parmağı
+const F2 = '(1.6 3.5)';
+const G2 = '(3.6 5.5)';
+const A2 = '(5.6 7.5)';
+const C2 = '(3.5 5.4)';
+const D2 = '(5.5 7.4)';
+const x4 = (c) => `${c} ${c} ${c} ${c}`;
 
 export const WARMUPS = [
   {
@@ -70,9 +77,33 @@ export const WARMUPS = [
     ],
   },
   {
+    id: 'pc-iki-tel',
+    title: 'Power Chord 1 · İki Tel',
+    desc: 'Sadece iki tel: işaret parmağı 6. telde kök, yüzük parmağı 2 perde ileride 5. telde. Bastır, çal, bırak. Acele yok.',
+    focus: 'Akor · power chord ilk adım',
+    startTempo: 50, maxTempo: 100, step: 4,
+    bars: [`:2 ${G2} ${G2}`, `:4 ${x4(G2)}`, `:2 ${A2} ${A2}`, `:4 ${x4(A2)}`],
+  },
+  {
+    id: 'pc-kaydir',
+    title: 'Power Chord 2 · Kaydırma',
+    desc: 'Aynı iki telli şekli 6. telde kaydır: Sol5 → La5 → Fa5. Parmakların şeklini bozma, eli bütün olarak taşı.',
+    focus: 'Akor · şekli taşıma',
+    startTempo: 50, maxTempo: 100, step: 4,
+    bars: [`:4 ${G2} ${G2} ${A2} ${A2}`, `:4 ${F2} ${F2} ${G2} ${G2}`, `:2 ${A2} ${G2}`, `:8 ${x4(G2)} ${x4(A2)}`],
+  },
+  {
+    id: 'pc-besinci',
+    title: 'Power Chord 3 · 6. Telden 5. Tele',
+    desc: 'Sol5 (6. tel) → Do5 (5. tel) aynı perdede. Şekil aynı kalır, sadece bir tel aşağı iner.',
+    focus: 'Akor · tel değiştirme',
+    startTempo: 50, maxTempo: 100, step: 4,
+    bars: [`:4 ${x4(G2)}`, `:4 ${x4(C2)}`, `:4 ${A2} ${A2} ${D2} ${D2}`, `:2 ${G2} ${C2}`],
+  },
+  {
     id: 'power-chord',
-    title: 'Power Chord Geçişleri',
-    desc: 'Sol5 → Do5 → La5 → Re5. Kökü 6. telden 5. tele aynı perdede kaydır. Çalmayan telleri işaret parmağının ucuyla sustur.',
+    title: 'Power Chord 4 · Üç Tel',
+    desc: 'Tam şekil: serçe parmağı da yüzüğün altına, 4. tele. Sol5 → Do5 → La5 → Re5. Çalmayan telleri işaret parmağının ucuyla sustur.',
     focus: 'Akor · power chord',
     startTempo: 60, maxTempo: 120, step: 5,
     bars: [
@@ -106,16 +137,11 @@ export function buildWarmupTex(w, tempo) {
     `\\track "Tempo" { instrument percussion volume 8 }\n  ${click}\n`;
 }
 
-/** Bugün yapılacak 3 egzersiz: günden güne dönüşümlü. */
-export function dailyRoutine(dayNumber) {
+/** Bugün yapılacak 3 egzersiz: ders yolundaki fazına göre, günden güne dönüşümlü.
+ *  slots: her eleman bir id ya da dönüşümlü id listesi. */
+export function dailyRoutine(dayNumber, slots = ['acik-teller', ['kromatik', 'orumcek', 'pentatonik'], ['power-chord', 'acik-akorlar']]) {
   const by = (id) => WARMUPS.find((w) => w.id === id);
-  const left = ['kromatik', 'orumcek', 'pentatonik'];
-  const chords = ['power-chord', 'acik-akorlar'];
-  return [
-    by('acik-teller'),
-    by(left[dayNumber % left.length]),
-    by(chords[dayNumber % chords.length]),
-  ];
+  return slots.map((s) => by(Array.isArray(s) ? s[dayNumber % s.length] : s));
 }
 
 /** Son sonuca göre bir sonraki tempo. */

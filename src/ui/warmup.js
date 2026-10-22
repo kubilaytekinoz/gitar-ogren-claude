@@ -1,6 +1,7 @@
 // Isınma sayfası ve ısınma oturumu (egzersizler arka arkaya).
-import { WARMUPS, buildWarmupTex, nextTempo, dailyRoutine } from '../music/warmups.js';
-import { getProgress, saveProgress, today, dayNumber } from '../lib/store.js';
+import { WARMUPS, buildWarmupTex, nextTempo } from '../music/warmups.js';
+import { todayRoutine, recordWarmup } from '../music/path.js';
+import { getProgress, saveProgress, today } from '../lib/store.js';
 import { h, esc, toast } from '../lib/dom.js';
 
 /** list içindeki idx'inci egzersizi açar; bitince sıradakine geçer. */
@@ -17,6 +18,7 @@ export function startWarmup(app, list, idx, isRoutine) {
     onResult: (r) => {
       const t = today();
       t.warmups[w.id] = Math.max(t.warmups[w.id] ?? 0, r.accuracy);
+      recordWarmup(w.id, tempo, r.accuracy, r.speed);
       if (r.speed >= 1) {
         const nt = nextTempo(w, tempo, r.accuracy);
         if (nt !== tempo) toast(nt > tempo ? `Bir dahaki sefere ${nt} BPM` : `Tempo ${nt} BPM'e indi, acele yok`);
@@ -32,7 +34,7 @@ export function startWarmup(app, list, idx, isRoutine) {
 export function renderWarmups(root, app) {
   const p = getProgress();
   const t = today();
-  const routine = dailyRoutine(dayNumber());
+  const routine = todayRoutine(t);
   const page = h(`
     <div class="page">
       <div class="page-head">

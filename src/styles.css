@@ -270,3 +270,19 @@ input[type='range'] { accent-color: var(--amber); }
 
 .feedback.wait { color: var(--amber); }
 .input-err { background: var(--coral-soft); border: 1px solid var(--coral); color: var(--ink); border-radius: 10px; padding: 10px 14px; font-size: .9rem; max-width: 70ch; }
+
+/* Ders yolu */
+.btn.small { padding: 6px 12px; font-size: .85rem; }
+.path { display: flex; flex-direction: column; gap: 14px; margin-bottom: 18px; }
+.path .row { gap: 14px; flex-wrap: wrap; }
+.phases { display: flex; gap: 6px; }
+.phases .ph { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-weight: 600; font-size: .9rem; border: 1px solid var(--line); color: var(--muted); }
+.phases .ph.done { background: var(--turq); border-color: var(--turq); color: #062421; }
+.phases .ph.cur { border: 2px solid var(--turq); color: var(--ink); }
+.path-goals { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+.path-goals .g { display: flex; flex-direction: column; gap: 6px; font-size: .88rem; color: var(--muted); }
+.path-goals .g b { color: var(--ink); font-weight: 500; }
+.path-goals .g.done span { color: var(--turq); }
+.path-goals .g .btn { align-self: flex-start; }
+.path-songs { align-items: center; }
+.path-tip { border-left: 3px solid var(--coral); padding: 8px 12px; background: var(--panel-2); border-radius: 8px; font-size: .9rem; }

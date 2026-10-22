@@ -75,6 +75,7 @@ export function addPracticeSeconds(sec) {
 export function dayStatus(key, routineIds) {
   const d = progress.days[key];
   if (!d) return 'none';
+  if (d.routine) routineIds = d.routine;
   const done = routineIds ? routineIds.every((id) => d.warmups?.[id] != null) : Object.keys(d.warmups || {}).length >= 3;
   if (done || d.seconds >= 600) return 'done';
   if (d.seconds > 0 || Object.keys(d.warmups || {}).length) return 'part';
