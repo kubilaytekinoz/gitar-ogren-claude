@@ -6,7 +6,7 @@ import * as alphaTab from '@coderline/alphatab';
 import { readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { extractEvents, playableTracks } from '../src/music/events.js';
+import { extractEvents, playableTracks, simplifyEvents } from '../src/music/events.js';
 import { WARMUPS, buildWarmupTex } from '../src/music/warmups.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -50,6 +50,13 @@ function check(name, tex) {
     return;
   }
   const { events } = extractEvents(score, tracks[0].index, gen.tickLookup);
+  for (const lv of ['alistirma', 'kolay']) {
+    const ev = simplifyEvents(events, lv);
+    if (!ev.length || ev.length > events.length || ev.some((e) => !e.notes.length)) {
+      console.error(`✗ ${name}: ${lv} seviyesi bozuk (${ev.length}/${events.length})`);
+      errors++;
+    } else console.log(`  ${lv}: ${ev.length}/${events.length} nota`);
+  }
   const noFinger = events.flatMap((e) => e.notes).filter((n) => n.finger < 0);
   if (noFinger.length) {
     console.error(`✗ ${name}: ${noFinger.length} notaya parmak atanamadı`);

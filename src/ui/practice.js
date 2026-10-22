@@ -1,7 +1,7 @@
 // Çalma ekranı: eşlik çalar, sen gitarını çalarsın, program dinleyip puanlar.
 import { input } from '../audio/input.js';
 import { matchChordAfterAttack } from '../audio/pitch.js';
-import { extractEvents, playableTracks, TICKS_PER_QUARTER } from '../music/events.js';
+import { extractEvents, playableTracks, TICKS_PER_QUARTER, LEVELS, simplifyEvents } from '../music/events.js';
 import { label as noteLabel } from '../music/notes.js';
 import { Highway } from './highway.js';
 import { Fretboard } from './fretboard.js';
@@ -24,6 +24,9 @@ export function setSoundFont(hasGeneralUser) {
  */
 export function openPractice(root, opts) {
   const s = getSettings();
+  let level = opts.kind === 'song' ? (LEVELS[s.songLevel] ? s.songLevel : 'kolay') : 'zor';
+  // Sahne seviyesinde bekleme yok ve zamanlama sıkı (kayıtlı ayar değişmez)
+  const cfgNow = () => (level === 'sahne' ? { ...getSettings(), waitMode: false, difficulty: 'zor' } : getSettings());
   root.innerHTML = '';
   const view = h(`
     <div class="play">
@@ -42,6 +45,7 @@ export function openPractice(root, opts) {
         </div>
         <div class="spacer"></div>
         <div class="chips">
+          ${opts.kind === 'song' ? `<label class="ctrl small muted" title="${esc(LEVELS[level].hint)}" data-r="levelWrap">Seviye <select data-r="level">${Object.entries(LEVELS).map(([k, L]) => `<option value="${k}" ${k === level ? 'selected' : ''}>${L.label}</option>`).join('')}</select></label>` : ''}
           <label class="ctrl small muted" data-r="trackWrap" hidden>Parti <select data-r="track"></select></label>
           <button class="chip" data-a="listen" title="Gitarsız dinle: kendi partin de çalar, puan tutulmaz">Dinleme modu</button>
           <button class="chip" data-a="wait" title="Sen doğru çalınca ilerler; çalmazsan sıradaki notada bekler">Bekle modu</button>
@@ -247,6 +251,7 @@ export function openPractice(root, opts) {
   function prepareEvents() {
     if (!api || !api.tickCache) return;
     data = extractEvents(score, trackIndex, api.tickCache);
+    data.events = simplifyEvents(data.events, level);
     bars = [];
     const seen = new Set();
     for (const mb of api.tickCache.masterBars) {
@@ -390,7 +395,7 @@ export function openPractice(root, opts) {
 
   function judge(now, songMs) {
     if (!data) return;
-    const cfg = getSettings();
+    const cfg = cfgNow();
     const tol = TOLERANCE[cfg.difficulty] * speed;
     const t = songMs - cfg.latencyMs * speed;
     const evs = data.events;
@@ -457,9 +462,9 @@ export function openPractice(root, opts) {
     ev.hitAt = now;
     streakN++;
     bestStreak = Math.max(bestStreak, streakN);
-    const tol = TOLERANCE[getSettings().difficulty];
+    const tol = TOLERANCE[cfgNow().difficulty];
     let txt = 'Harika!';
-    if (!getSettings().waitMode) {
+    if (!cfgNow().waitMode) {
       if (offsetMs < -tol * 0.45) txt = 'Biraz erken';
       else if (offsetMs > tol * 0.45) txt = 'Biraz geç';
     }
@@ -492,7 +497,7 @@ export function openPractice(root, opts) {
     const evs = (data ? data.events : []).filter((e) => e.state !== 'skip');
     const done = evs.filter((e) => e.state === 'hit' || e.state === 'miss');
     const hits = done.filter((e) => e.state === 'hit');
-    const tol = TOLERANCE[getSettings().difficulty];
+    const tol = TOLERANCE[cfgNow().difficulty];
     const timed = hits.filter((e) => e.offset != null);
     const perfect = timed.filter((e) => Math.abs(e.offset) <= tol * 0.45).length;
     const early = timed.filter((e) => e.offset < -tol * 0.45).length;
@@ -530,7 +535,7 @@ export function openPractice(root, opts) {
   function showResult(st) {
     const acc = st.fullAccuracy;
     const stars = acc >= 95 ? 3 : acc >= 80 ? 2 : acc >= 60 ? 1 : 0;
-    const res = { accuracy: acc, stars, speed, hits: st.hits, total: st.total, bestStreak: st.bestStreak };
+    const res = { accuracy: acc, stars, speed, level, hits: st.hits, total: st.total, bestStreak: st.bestStreak };
     opts.onResult?.(res);
     const weak = [...st.missByBar.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4).sort((a, b) => a[0] - b[0]);
     const timedTotal = st.perfect + st.early + st.late;
@@ -544,7 +549,7 @@ export function openPractice(root, opts) {
         <div class="row"><div class="score">%${acc}</div><div class="spacer"></div><div class="stars">${'★'.repeat(stars)}<span class="off">${'★'.repeat(3 - stars)}</span></div></div>
         <p>${msg}</p>
         <p class="muted small">${st.hits} / ${st.total} nota doğru · en uzun seri ${st.bestStreak} · hız %${Math.round(speed * 100)}</p>
-        ${timedTotal && !getSettings().waitMode ? `<p class="small">Zamanlama: %${pct(st.perfect)} tam yerinde, %${pct(st.early)} erken, %${pct(st.late)} geç</p>` : ''}
+        ${timedTotal && !cfgNow().waitMode ? `<p class="small">Zamanlama: %${pct(st.perfect)} tam yerinde, %${pct(st.early)} erken, %${pct(st.late)} geç</p>` : ''}
         ${weak.length ? `<div><p class="small muted" style="margin-bottom:8px">Zorlandığın yerler — tıkla, o bölümü döngüde çalış:</p><div class="weak">${weak.map(([b]) => `<button class="btn" data-bar="${b}">${b + 1}. ölçü</button>`).join('')}</div></div>` : ''}
         ${acc >= 90 && speed < 1 ? '<p class="small" style="color:var(--turq)">Bu hızda rahatsın, hızı biraz artırmayı dene.</p>' : ''}
         <div class="row">
@@ -630,8 +635,8 @@ export function openPractice(root, opts) {
   function syncToggles() {
     const c = getSettings();
     btn('listen').classList.toggle('on', listen);
-    btn('wait').classList.toggle('on', c.waitMode);
-    btn('wait').disabled = listen;
+    btn('wait').classList.toggle('on', c.waitMode && level !== 'sahne');
+    btn('wait').disabled = listen || level === 'sahne';
     const warn = $('inputWarn');
     warn.hidden = !listen && input.running;
     warn.textContent = listen
@@ -659,7 +664,7 @@ export function openPractice(root, opts) {
       updateHud(true);
     }
   };
-  btn('wait').onclick = () => { setSetting('waitMode', !getSettings().waitMode); waiting = null; syncToggles(); };
+  btn('wait').onclick = () => { setSetting('waitMode', !cfgNow().waitMode); waiting = null; syncToggles(); };
   btn('guide').onclick = () => { setSetting('guide', !getSettings().guide); applyTrackAudio(); syncToggles(); };
   btn('metro').onclick = () => { setSetting('metronome', !getSettings().metronome); if (api) api.metronomeVolume = getSettings().metronome ? 1 : 0; syncToggles(); };
   btn('sheet').onclick = () => {
@@ -760,7 +765,20 @@ export function openPractice(root, opts) {
     play: () => togglePlay(),
   };
 
-  setSpeed(1);
+  const levelSel = $('level');
+  if (levelSel) {
+    levelSel.onchange = () => {
+      level = levelSel.value;
+      setSetting('songLevel', level);
+      levelSel.blur();
+      $('levelWrap').title = LEVELS[level].hint;
+      setSpeed(LEVELS[level].speed);
+      syncToggles();
+      prepareEvents();
+      restart(false);
+    };
+  }
+  setSpeed(LEVELS[level].speed);
   syncToggles();
   load();
   return { destroy: cleanup };

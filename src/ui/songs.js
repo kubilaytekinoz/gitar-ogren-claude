@@ -1,6 +1,7 @@
 // Şarkı kütüphanesi: hazır şarkılar + senin eklediğin Guitar Pro dosyaları.
 import { getProgress, saveProgress } from '../lib/store.js';
 import { h, esc, toast } from '../lib/dom.js';
+import { LEVELS } from '../music/events.js';
 
 function starHtml(n) {
   return `<span class="stars">${'★'.repeat(n)}<span class="off">${'★'.repeat(3 - n)}</span></span>`;
@@ -26,6 +27,7 @@ export function playSong(app, song) {
       b.plays = (b.plays || 0) + 1;
       if (r.accuracy > b.accuracy) b.accuracy = r.accuracy;
       if (r.stars > b.stars) b.stars = r.stars;
+      if (r.level) { b.levels = b.levels || {}; b.levels[r.level] = Math.max(b.levels[r.level] || 0, r.accuracy); }
       b.lastPlayed = Date.now();
       p.songBest[song.id] = b;
       p.lastSong = song.id;
@@ -91,7 +93,7 @@ export function renderSongs(root, app) {
             <div class="meta">${esc(s.artist || (s.builtIn ? '' : s.file))}</div>
           </div>
           <div>${s.builtIn ? '<span class="tag">Hazır</span>' : '<span class="tag mine">Senin dosyan</span>'}</div>
-          <div class="small muted">${best ? `${starHtml(best.stars)}<br>en iyi %${best.accuracy}` : 'henüz çalınmadı'}</div>
+          <div class="small muted">${best ? `${starHtml(best.stars)}<br>en iyi %${best.accuracy}${best.levels ? '<br>' + Object.entries(best.levels).map(([k, v]) => `${LEVELS[k]?.label || k} %${v}`).join(' · ') : ''}` : 'henüz çalınmadı'}</div>
           <div class="row">
             ${s.builtIn ? '' : '<button class="btn icon ghost danger" data-a="del" title="Sil">🗑</button>'}
             <button class="btn primary" data-a="play">▶ Çal</button>

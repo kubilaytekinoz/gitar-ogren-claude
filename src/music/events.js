@@ -190,3 +190,30 @@ export function playableTracks(score) {
   });
   return list;
 }
+
+/** Aynı dosyadan 4 seviye. Alıştırma ve Kolay'da notalar seyreltilir, akorlar sadeleşir. */
+export const LEVELS = {
+  alistirma: { label: 'Alıştırma', speed: 0.75, window: 2, maxNotes: 1, hint: 'Her iki vuruşta bir nota, akorların sadece kalın teli' },
+  kolay: { label: 'Kolay', speed: 0.9, window: 1, maxNotes: 2, hint: 'Her vuruşta bir nota, akorlar 2 telli' },
+  zor: { label: 'Zor', speed: 1, window: 0, maxNotes: 99, hint: 'Bütün notalar' },
+  sahne: { label: 'Sahne', speed: 1, window: 0, maxNotes: 99, hint: 'Bütün notalar, tam hız, beklemeden, sıkı zamanlama' },
+};
+
+export function simplifyEvents(events, level) {
+  const L = LEVELS[level] || LEVELS.zor;
+  if (!L.window) return events;
+  const W = L.window * TICKS_PER_QUARTER;
+  const out = [];
+  let lastWin = -1;
+  for (const ev of events) {
+    const win = Math.floor(ev.tick / W);
+    if (win === lastWin) continue;
+    lastWin = win;
+    // notes: kalın telden inceye sıralı; en kalın N nota kalır
+    const notes = ev.notes.slice(0, L.maxNotes);
+    out.push({ ...ev, notes, isChord: notes.length > 1, state: 'pending' });
+  }
+  // çok seyrek kaldıysa (ör. çok yavaş şarkı) bir alt pencereyle yeniden dene
+  if (out.length < events.length * 0.25 && L.window > 1) return simplifyEvents(events, 'kolay');
+  return out;
+}
